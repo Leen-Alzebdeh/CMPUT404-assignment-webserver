@@ -26,30 +26,58 @@ import socketserver
 
 # try: curl -v -X GET http://127.0.0.1:8080/
 
+c200 = "HTTP/1.1 200 OK\r\n"
+c301 = "HTTP/1.1 301 Moved Permanently\r\n"
+c400 = "HTTP/1.1 400 Bad Request\r\n"
+c404 = "HTTP/1.1 404 Not Found\r\n"
+c405 = "HTTP/1.1 405 Method Not Allowed\r\n"
+
+
 class MyWebServer(socketserver.BaseRequestHandler):
     def handle(self):
         self.data = self.request.recv(1024).strip()
         print ("Got a request of: %s\n" % self.data)
         self.parse_request(self.data.decode("utf-8"))
+        if self.path == "/" or self.path.endswith("/"):
+            print("replaced")
+            self.path +='index.html'
+        if self.method != 'GET':
+            self.request.sendall(bytearray(c405, 'utf-8'))
         if (self.method=='GET') & ('favicon.ico' not in self.path):
             self.do_GET()
     
-    def do_GET(self):             
-        self.path = "www/%s" % self.path
-        if self.path == "www/":
-            self.path='www/index.html'
+    def do_GET(self):   
+        self.path = "www%s" % self.path   
+        try:  
+            if not (self.path[-1] == "/" or self.path.endswith(".css") or self.path.endswith(".html")):
+                self.path = (self.path).split('/')
+                if 'www' not in self.path:
+                    #print(path)
+                    raise Exception
+                else:
+                    response = self.do_GET_301()
+            else: 
+                print("2nd")
+                response = self.do_GET_200()
+        except:
+            response = c404
+        finally:
+            self.request.sendall(bytearray(response, 'utf-8'))
+        print(self.path)
+    
+
+    def do_GET_301(self):
+        response_head = c301 + "\nLocation: %s/\r\n" % self.path
+        return response_head
+
+    def do_GET_200(self):
         type =self.path.split(".")[1]
         print(type)
-        print(self.path)
         with open(self.path, 'r') as file:
             data = file.read()
-        self.request.sendall(bytearray(
-            """HTTP/1.1 200 OK\r\nContent-Type: text/%s\r\n Content-Length: 0
-
-
-            %s """ % (type,data)
-        ,'utf-8'))
-
+        response_head = c200 + "%" + "Content-Type: text/%s\r\n\r\n" % type + data
+        return response_head 
+        
     def parse_request(self, req):
         url = ''
         headers = {}
@@ -67,7 +95,7 @@ class MyWebServer(socketserver.BaseRequestHandler):
                 k, v = line.split(":", 1)
                 headers[k.strip()] = v.strip()
         method, path, _ = lines[0].split()
-        self.path = path.lstrip("/")
+        self.path = path
         self.method = method
         self.headers = headers
         self.body = body
