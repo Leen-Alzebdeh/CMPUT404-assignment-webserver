@@ -60,13 +60,10 @@ class MyWebServer(socketserver.BaseRequestHandler):
                 if 'www' not in path:
                     raise NotADirectoryError
                 if not os.path.exists(path):
-                    print("BITCH")
                     raise request.HTTPError 
                 else:
-                    print("Hey")
                     response = self.do_GET_301(filename)
             else: 
-                print("index")
                 response = self.do_GET_200(path)
         except NotADirectoryError as e:
             response = c404
