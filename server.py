@@ -1,5 +1,6 @@
 #  coding: utf-8 
 import socketserver
+import os
 
 # Copyright 2013 Abram Hindle, Eddie Antonio Santos
 # 
@@ -28,6 +29,11 @@ import socketserver
 
 c200 = "HTTP/1.1 200 OK\r\n"
 c301 = "HTTP/1.1 301 Moved Permanently\r\n"
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 c400 = "HTTP/1.1 400 Bad Request\r\n"
 c404 = "HTTP/1.1 404 Not Found\r\n"
 c405 = "HTTP/1.1 405 Method Not Allowed\r\n"
@@ -37,47 +43,53 @@ class MyWebServer(socketserver.BaseRequestHandler):
     def handle(self):
         self.data = self.request.recv(1024).strip()
         print ("Got a request of: %s\n" % self.data)
-        self.parse_request(self.data.decode("utf-8"))
-        if self.path == "/" or self.path.endswith("/"):
-            print("replaced")
-            self.path +='index.html'
+        filename = self.parse_request(self.data.decode("utf-8"))
         if self.method != 'GET':
             self.request.sendall(bytearray(c405, 'utf-8'))
-        if (self.method=='GET') & ('favicon.ico' not in self.path):
-            self.do_GET()
+        if (self.method=='GET') & ('favicon.ico' not in  filename):
+            self.do_GET(filename)
     
-    def do_GET(self):   
-        self.path = "www%s" % self.path   
+    def do_GET(self, filename):   
+        if filename == "/" or filename.endswith("/"):
+            filename += 'index.html'
+        
+        path = "www%s" % filename
         try:  
-            if not (self.path[-1] == "/" or self.path.endswith(".css") or self.path.endswith(".html")):
-                self.path = (self.path).split('/')
-                if 'www' not in self.path:
-                    #print(path)
-                    raise Exception
+            if not (filename.endswith("/") | filename.endswith(".css") | filename.endswith(".html")):
+                path = os.path.abspath(path)
+                if 'www' not in path:
+                    raise NotADirectoryError
+                if not os.path.exists(path):
+                    print("BITCH")
+                    raise request.HTTPError 
                 else:
-                    response = self.do_GET_301()
+                    print("Hey")
+                    response = self.do_GET_301(filename)
             else: 
-                print("2nd")
-                response = self.do_GET_200()
+                print("index")
+                response = self.do_GET_200(path)
+        except NotADirectoryError as e:
+            response = c404
         except:
             response = c404
         finally:
             self.request.sendall(bytearray(response, 'utf-8'))
-        print(self.path)
     
 
-    def do_GET_301(self):
-        response_head = c301 + "\nLocation: %s/\r\n" % self.path
+    def do_GET_301(self,filename):
+
+        response_head = c301 + "\nLocation: %s/\r\n" % filename
         return response_head
 
-    def do_GET_200(self):
-        type =self.path.split(".")[1]
-        print(type)
-        with open(self.path, 'r') as file:
+    def do_GET_200(self,path):
+        if path.endswith("html"):
+            file_type = "html"
+        if path.endswith("css"):
+            file_type = "css"
+        with open(path, 'r') as file:
             data = file.read()
-        response_head = c200 + "%" + "Content-Type: text/%s\r\n\r\n" % type + data
+        response_head = c200 + "Content-Type: text/%s\r\n\r\n" % file_type + data
         return response_head 
-        
     def parse_request(self, req):
         url = ''
         headers = {}
@@ -94,16 +106,11 @@ class MyWebServer(socketserver.BaseRequestHandler):
             else:
                 k, v = line.split(":", 1)
                 headers[k.strip()] = v.strip()
-        method, path, _ = lines[0].split()
-        self.path = path
+        method, filename, _ = lines[0].split()
         self.method = method
         self.headers = headers
         self.body = body
-        print(url)
-        try:
-            self.path, self.query_string = self.path.split("?")
-        except:
-            pass
+        return filename
 
 if __name__ == "__main__":
     HOST, PORT = "localhost", 8080
