@@ -60,7 +60,7 @@ class MyWebServer(socketserver.BaseRequestHandler):
                 if 'www' not in path:
                     raise NotADirectoryError
                 if not os.path.exists(path):
-                    raise request.HTTPError 
+                    raise Exception   
                 else:
                     response = self.do_GET_301(filename)
             else: 
